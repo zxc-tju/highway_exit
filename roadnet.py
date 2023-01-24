@@ -40,7 +40,7 @@ class RoadNetwork:
 class Lane:
     def __init__(self, lane_id=0, traffic_quantity=30):
         self.id = lane_id
-        self.length = 500
+        self.length = 800
         self.traffic_quantity = traffic_quantity
         self.x_range = [0, 3000]
         self.y_range = [lane_id * 4 - 2, lane_id * 4 + 2]

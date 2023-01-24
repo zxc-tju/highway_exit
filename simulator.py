@@ -12,7 +12,7 @@ from time import gmtime, strftime
 
 dt = 0.1
 AV_controller = 'NGMP'  # 'NGMP'  'IDM'
-AV_IPV = 0.5
+AV_IPV = 0.2
 WARMUP_TIME = 5
 SIMULATION_FRAMES = 250
 
@@ -55,7 +55,7 @@ class Simulator:
         # save as mp4 video
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=10, codec="h264", bitrate=-1, metadata=dict(dpi=600, artist='Me'))
-        video_dir = '../outputs/highway_exit/video-' + \
+        video_dir = '../outputs/highway_exit/video/' + \
                     AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()) + '/'
         if not os.path.exists(video_dir):
             os.makedirs(video_dir)
@@ -76,7 +76,7 @@ class Simulator:
             self.save_data()
 
     def save_data(self):
-        file_name = '../outputs/highway_exit/data-' + \
+        file_name = '../outputs/highway_exit/data/' + \
                     AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()) + '.xlsx'
         if not os.path.exists(file_name):
             workbook = xlsxwriter.Workbook(file_name)
