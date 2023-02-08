@@ -21,7 +21,7 @@ MIN_DIS = 2
 
 # weights for calculate interior cost
 WEIGHT_DELAY = 0.3
-WEIGHT_DEVIATION = 0.8
+WEIGHT_DEVIATION = 1
 weight_metric = np.array([WEIGHT_DELAY, WEIGHT_DEVIATION])
 weight_metric = weight_metric / weight_metric.sum()
 

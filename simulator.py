@@ -12,9 +12,12 @@ from time import gmtime, strftime
 
 dt = 0.1
 AV_controller = 'NGMP'  # 'NGMP'  'IDM'
-AV_IPV = 0.2
+AV_IPV = -0.5
 WARMUP_TIME = 5
-SIMULATION_FRAMES = 250
+
+SIMULATION_FRAMES = 500
+LANE_LEN = 1000
+save_data_needed = False
 
 
 class Simulator:
@@ -29,7 +32,7 @@ class Simulator:
         self.record_data = {
             'case': self.case_id,
             'success?': 0,
-            'finish time': None,
+            'finish time': 0,
             'finish x': None,
             'f_ttc_1': None,
             'b_ttc_1': None,
@@ -46,38 +49,39 @@ class Simulator:
         ani = FuncAnimation(self.fig, self.update, interval=10,
                             frames=SIMULATION_FRAMES, blit=False, repeat=False, save_count=SIMULATION_FRAMES)
 
-        # show animation
-        # plt.show()
+        " ---- option 1: show animation ---- "
+        plt.show()
 
-        # save as gif
+        " ---- option 2: save as gif ---- "
         # ani.save('test.gif', fps=10, dpi=300)
 
-        # save as mp4 video
-        Writer = animation.writers['ffmpeg']
-        writer = Writer(fps=10, codec="h264", bitrate=-1, metadata=dict(dpi=600, artist='Me'))
-        video_dir = '../outputs/highway_exit/video/' + \
-                    AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()) + '/'
-        if not os.path.exists(video_dir):
-            os.makedirs(video_dir)
-        ani.save(video_dir + str(self.case_id) + '.mp4', writer=writer)
-        plt.close()
+        " ---- option 3: save as mp4 video ---- "
+        # Writer = animation.writers['ffmpeg']
+        # writer = Writer(fps=10, codec="h264", bitrate=-1, metadata=dict(dpi=600, artist='Me'))
+        # video_dir = '../outputs/highway_exit/video/' + str(LANE_LEN) + 'm/' + \
+        #             strftime("%Y-%m-%d", gmtime()) + '-' + AV_controller + '-ipv-' + str(AV_IPV) + '/'
+        # if not os.path.exists(video_dir):
+        #     os.makedirs(video_dir)
+        # ani.save(video_dir + str(self.case_id) + '.mp4', writer=writer)
+        # plt.close()
 
     def update(self, frame):
+
         self.time += dt
-
         self.update_fig()
-
-        self.update_vehicle_motion()
+        self.update_vehicle_motion()  # update both AV and background vehicles
 
         if self.av and not self.is_task_complete:
+            # check whether task is finished. if yes, save position and time step.
             self.check_task()
 
-        if frame == SIMULATION_FRAMES - 1:
+        if frame == SIMULATION_FRAMES - 1 and save_data_needed:
+            # run out of time, save task info.
             self.save_data()
 
     def save_data(self):
-        file_name = '../outputs/highway_exit/data/' + \
-                    AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()) + '.xlsx'
+        file_name = '../outputs/highway_exit/data/' + str(LANE_LEN) + 'm/' + \
+                    strftime("%Y-%m-%d", gmtime()) + '-' + AV_controller + '-ipv-' + str(AV_IPV) + '.xlsx'
         if not os.path.exists(file_name):
             workbook = xlsxwriter.Workbook(file_name)
             workbook.add_worksheet()
@@ -101,24 +105,16 @@ class Simulator:
                 self.record_data['success?'] = 1
 
     def update_vehicle_motion(self):
-        if self.time < WARMUP_TIME:
-            self.warm_up()
-        else:
-            if not self.av_exist:
-                self.add_av()
-                self.warm_up()
-            else:
-                self.run_testing()
-
-    def run_testing(self):
+        # update background vehicles
         self.update_background_vehicle()
         self.add_new_vehicle()
 
-        if self.time > WARMUP_TIME + 5:
-            self.update_av()
-        else:
-            self.av.idm_update()
-            self.av.draw_box(self.ax)
+        if self.time > WARMUP_TIME:
+
+            if not self.av_exist:
+                self.add_av()
+            else:
+                self.update_av()
 
     def add_av(self):
         lane = self.road_net.lane_list[-1]
@@ -130,21 +126,21 @@ class Simulator:
             self.av.get_surrounding_vehicle(self.road_net)
 
     def update_av(self):
-        self.av.get_surrounding_vehicle(self.road_net)
-        if self.av.check_lane(self.road_net):  # check if av has changed lane
-            self.road_net.update_rank_in_lane(self.av)
-            self.record_ttc_after_lc()
+        if self.time > WARMUP_TIME + 5:  # start control after a further while
+            self.av.get_surrounding_vehicle(self.road_net)
+            if self.av.check_lane(self.road_net):  # check if av has changed lane
+                self.road_net.update_rank_in_lane(self.av)
+                self.record_ttc_after_lc()
 
-        if not self.av.is_planning_back:
-            self.av.get_av_central_vertices(self.road_net)
+            if not self.av.is_planning_back:  # if AV is planning back to current lane, do not change target lane
+                self.av.get_av_central_vertices(self.road_net)
 
-        self.av.update_av_motion()
+            self.av.update_av_motion()
+
+        else:
+            self.av.idm_update()
 
         self.av.draw_box(self.ax)
-
-    def warm_up(self):
-        self.update_background_vehicle()
-        self.add_new_vehicle()
 
     def update_background_vehicle(self):
         for lane in self.road_net.lane_list:
@@ -183,7 +179,7 @@ class Simulator:
     def initialize_lane_list(self):
         for i in range(self.road_net.lane_number):
             # create lanes
-            self.road_net.lane_list.append(Lane(lane_id=i, traffic_quantity=self.road_net.traffic_quantity))
+            self.road_net.lane_list.append(Lane(lane_id=i, traffic_quantity=self.road_net.traffic_quantity, lane_len=LANE_LEN))
 
     def initialize_vehicle_list(self):
         for lane in self.road_net.lane_list:  # create vehicles for each lane
@@ -201,7 +197,7 @@ class Simulator:
         if self.av:
             self.ax.text(self.av.x, 20, 'time=' + str(int(self.time)), size=20)
             self.ax.set_xlim(max(0, self.av.x - 100), self.av.x + 100)
-            # self.ax.plot(self.av.target_cv[:, 0], self.av.target_cv[:, 1], color='blue', linewidth=2)
+            self.ax.plot(self.av.target_cv[:, 0], self.av.target_cv[:, 1], color='blue', linewidth=3)
         self.draw_road_net()
 
         # Set the borders to a given color
@@ -211,14 +207,14 @@ class Simulator:
 
 
 if __name__ == '__main__':
-    # simu = Simulator(0)
-    # simu.initialize()
-    print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()))
-    proc_bar = tqdm(range(0, 500))
-    for n in proc_bar:
-        try:
-            simu = Simulator(n)
-            simu.initialize()
-        except:
-            print('case', str(n), 'failed')
-            continue
+    simu = Simulator(0)
+    simu.initialize()
+    # print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()))
+    # proc_bar = tqdm(range(0, 500))
+    # for n in proc_bar:
+    #     try:
+    #         simu = Simulator(n)
+    #         simu.initialize()
+    #     except:
+    #         print('case', str(n), 'failed')
+    #         continue

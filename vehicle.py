@@ -102,21 +102,32 @@ class AutonomousVehicle(Vehicle):
         self.target_cv = None
         self.controller = controller
         self.ipv = ipv * math.pi / 4
-        self.trajectory_solution = []
+        self.trajectory_solution = np.array([])
 
     def update_av_motion(self):
+
         if self.controller == 'IDM':
             self.idm_update()
         if self.controller == 'NGMP':  # Nash game motion planner
             self.ngmp_update()
 
     def ngmp_update(self):
-        # print(self.y)
-        # if self.y < 10:
-        #     print()
         self.planning_to_target_cv()
 
-        # print(self.target_cv[, :])
+        if self.check_collision():
+            print('planning to target failed, keep in current lane')
+            self.planning_to_current_cv()
+            self.is_planning_back = True
+
+            if self.check_collision(target={'front'}):
+                print('keep in current lane failed, start car-following')
+                self.idm_update()
+            else:
+                self.get_new_state()
+
+        else:
+            self.is_planning_back = False
+            self.get_new_state()
 
     def planning_to_target_cv(self):
 
@@ -140,18 +151,6 @@ class AutonomousVehicle(Vehicle):
         agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
         self.trajectory_solution = agent_av.trj_solution[:, 0:5]
 
-        if self.check_collision():
-            # print('planning back')
-            self.planning_to_current_cv()
-            self.is_planning_back = True
-        else:
-            self.is_planning_back = False
-            self.x = self.trajectory_solution[1, 0]
-            self.y = self.trajectory_solution[1, 1]
-            self.vx = self.trajectory_solution[1, 2]
-            self.vy = self.trajectory_solution[1, 3]
-            self.heading = self.trajectory_solution[1, 4]
-
     def planning_to_current_cv(self):
         agent_av = Agent(
             [self.x, self.y],  # position
@@ -167,38 +166,45 @@ class AutonomousVehicle(Vehicle):
             0,  # heading
             self.current_cv
         )
-        # print(self.y)
-        # print(self.current_cv[0, 1])
+
         agent_av.estimated_inter_agent = [copy.deepcopy(agent_bv)]
         agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
-        # agent_av.ibr_interact(iter_limit=50)
         self.trajectory_solution = agent_av.trj_solution[:, 0:5]
+
+    def get_new_state(self):
         self.x = self.trajectory_solution[1, 0]
         self.y = self.trajectory_solution[1, 1]
         self.vx = self.trajectory_solution[1, 2]
         self.vy = self.trajectory_solution[1, 3]
         self.heading = self.trajectory_solution[1, 4]
 
-    def check_collision(self):
+    def check_collision(self, target=None):
         av_trj = np.array(self.trajectory_solution[1:, 0:2])
-        for veh in self.surrounding_vehicles.values():
-            if veh:
-                future_x = veh.x + np.cumsum(veh.vx * dt * np.ones([np.size(self.trajectory_solution, 0) - 1, 1])) - veh.vx * dt
-                future_trj = np.array([[x, veh.y] for x in list(future_x)])
-                distance = np.linalg.norm(av_trj - future_trj, axis=1)
-                if min(distance) < 6:
-                    # print('collision to vehicle: ', veh.global_id)
-                    return True
+        if target:
+            for veh_target in target:
+                veh = self.surrounding_vehicles[veh_target]
+                if veh:
+                    future_x = veh.x + np.cumsum(
+                        veh.vx * dt * np.ones([np.size(self.trajectory_solution, 0) - 1, 1])) - veh.vx * dt
+                    future_trj = np.array([[x, veh.y] for x in list(future_x)])
+                    distance = np.linalg.norm(av_trj - future_trj, axis=1)
+                    if min(distance) < 5:
+                        # print('collision to vehicle: ', veh.global_id)
+                        return True
+        else:
+            for veh in self.surrounding_vehicles.values():
+                if veh:
+                    future_x = veh.x + np.cumsum(veh.vx * dt * np.ones([np.size(self.trajectory_solution, 0) - 1, 1])) - veh.vx * dt
+                    future_trj = np.array([[x, veh.y] for x in list(future_x)])
+                    distance = np.linalg.norm(av_trj - future_trj, axis=1)
+                    if min(distance) < 5:
+                        # print('collision to vehicle: ', veh.global_id)
+                        return True
         return False
 
     def get_surrounding_vehicle(self, rn):
         self.surrounding_vehicles['front'] = None
         self.surrounding_vehicles['back'] = None
-        # for veh in rn.lane_list[self.lane_id].vehicle_list:
-        #     if veh.rank_in_lane == self.rank_in_lane - 1:
-        #         self.surrounding_vehicles['front'] = veh
-        #     if veh.rank_in_lane == self.rank_in_lane + 1:
-        #         self.surrounding_vehicles['back'] = veh
 
         x_position_list = []
         for veh in rn.lane_list[self.lane_id - 1].vehicle_list:
