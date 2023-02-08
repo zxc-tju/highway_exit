@@ -23,7 +23,7 @@ class RoadNetwork:
         av.rank_in_lane = new_rank
 
         for veh in self.lane_list[old_lane_id].vehicle_list:
-            if veh.rank_in_lane > old_rank and not veh.is_av:
+            if veh.rank_in_lane > old_rank:  # and not veh.is_av
                 veh.rank_in_lane -= 1
 
         av.back_ttc = None
@@ -38,9 +38,9 @@ class RoadNetwork:
 
 
 class Lane:
-    def __init__(self, lane_id=0, traffic_quantity=30):
+    def __init__(self, lane_id=0, traffic_quantity=30, lane_len=500):
         self.id = lane_id
-        self.length = 800
+        self.length = lane_len
         self.traffic_quantity = traffic_quantity
         self.x_range = [0, 3000]
         self.y_range = [lane_id * 4 - 2, lane_id * 4 + 2]
