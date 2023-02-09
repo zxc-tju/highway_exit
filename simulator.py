@@ -132,13 +132,13 @@ class Simulator:
                 self.road_net.update_rank_in_lane(self.av)
                 self.record_ttc_after_lc()
 
-            if not self.av.is_planning_back:  # if AV is planning back to current lane, do not change target lane
-                self.av.get_av_central_vertices(self.road_net)
+            # if not self.av.is_planning_back:  # if AV is planning back to current lane, do not change target lane
+            self.av.get_av_central_vertices(self.road_net)
 
             self.av.update_av_motion()
 
         else:
-            self.av.idm_update()
+            self.av.idm_planner()
 
         self.av.draw_box(self.ax)
 
@@ -149,11 +149,11 @@ class Simulator:
                     if self.av.surrounding_vehicles['rightback']:
                         if veh.global_id == self.av.surrounding_vehicles['rightback'].global_id:
                             if self.av.y - veh.y < veh.react_threshold:
-                                veh.idm_update(given_leading_car=self.av)
+                                veh.idm_planner(given_leading_car=self.av)
                                 veh.draw_box(self.ax)
                                 continue
                 if not veh.is_av:
-                    veh.idm_update()
+                    veh.idm_planner()
                     veh.draw_box(self.ax)
                     if veh.x > lane.length:
                         lane.vehicle_list.pop(0)  # delete vehicles run out of the lane
@@ -197,7 +197,8 @@ class Simulator:
         if self.av:
             self.ax.text(self.av.x, 20, 'time=' + str(int(self.time)), size=20)
             self.ax.set_xlim(max(0, self.av.x - 100), self.av.x + 100)
-            self.ax.plot(self.av.target_cv[:, 0], self.av.target_cv[:, 1], color='blue', linewidth=3)
+            self.ax.plot(self.av.target_cv[:, 0], self.av.target_cv[:, 1], color='blue', linewidth=2)
+            self.ax.plot(self.av.current_cv[:, 0], self.av.current_cv[:, 1], color='green', linewidth=2)
         self.draw_road_net()
 
         # Set the borders to a given color
@@ -207,8 +208,11 @@ class Simulator:
 
 
 if __name__ == '__main__':
+    " single run "
     simu = Simulator(0)
     simu.initialize()
+
+    " multi runs "
     # print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + strftime("%Y-%m-%d", gmtime()))
     # proc_bar = tqdm(range(0, 500))
     # for n in proc_bar:

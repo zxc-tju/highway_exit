@@ -77,7 +77,7 @@ class Vehicle:
                                    cv_current_end])
         self.current_cv, _ = smooth_ployline(current_cv_raw)
 
-    def idm_update(self, given_leading_car=None):
+    def idm_planner(self, given_leading_car=None):
         self.get_leading_vehicle_info(given_leading_car)
         acc = idm_model(self.idm_parameter,
                         self.vx,
@@ -105,29 +105,36 @@ class AutonomousVehicle(Vehicle):
         self.trajectory_solution = np.array([])
 
     def update_av_motion(self):
+        """
+        motion planner settings
+        """
 
         if self.controller == 'IDM':
-            self.idm_update()
+            self.idm_planner()
         if self.controller == 'NGMP':  # Nash game motion planner
-            self.ngmp_update()
+            self.ngmp_planner()
 
-    def ngmp_update(self):
-        self.planning_to_target_cv()
+    def ngmp_planner(self):
+        try:
+            self.planning_to_target_cv()
 
-        if self.check_collision():
-            print('planning to target failed, keep in current lane')
-            self.planning_to_current_cv()
-            self.is_planning_back = True
+            if self.check_collision():
+                print('planning to target failed, keep in current lane')
+                self.planning_to_current_cv()
+                self.is_planning_back = True
 
-            if self.check_collision(target={'front'}):
-                print('keep in current lane failed, start car-following')
-                self.idm_update()
+                if self.check_collision(target={'front'}):
+                    print('keep in current lane failed, start car-following')
+                    self.idm_planner()
+                else:
+                    self.get_new_state()
+
             else:
+                self.is_planning_back = False
                 self.get_new_state()
-
-        else:
-            self.is_planning_back = False
-            self.get_new_state()
+        except:
+            print('NGMP planning failed')
+            self.idm_planner()
 
     def planning_to_target_cv(self):
 
@@ -194,7 +201,8 @@ class AutonomousVehicle(Vehicle):
         else:
             for veh in self.surrounding_vehicles.values():
                 if veh:
-                    future_x = veh.x + np.cumsum(veh.vx * dt * np.ones([np.size(self.trajectory_solution, 0) - 1, 1])) - veh.vx * dt
+                    future_x = veh.x + np.cumsum(
+                        veh.vx * dt * np.ones([np.size(self.trajectory_solution, 0) - 1, 1])) - veh.vx * dt
                     future_trj = np.array([[x, veh.y] for x in list(future_x)])
                     distance = np.linalg.norm(av_trj - future_trj, axis=1)
                     if min(distance) < 5:
@@ -207,17 +215,17 @@ class AutonomousVehicle(Vehicle):
         self.surrounding_vehicles['back'] = None
 
         x_position_list = []
-        for veh in rn.lane_list[self.lane_id - 1].vehicle_list:
+        for veh in rn.lane_list[self.lane_id].vehicle_list:
             x_position_list.append(veh.x - self.x)
         x_position_arr = np.array(x_position_list)
 
         if max(x_position_arr) > 0:
             min_positive_index = np.where(x_position_arr == min(x_position_arr[x_position_arr > 0]))
-            self.surrounding_vehicles['front'] = rn.lane_list[self.lane_id - 1].vehicle_list[
+            self.surrounding_vehicles['front'] = rn.lane_list[self.lane_id].vehicle_list[
                 min_positive_index[0][0]]
         if min(x_position_arr) < 0:
             max_negative_index = np.where(x_position_arr == max(x_position_arr[x_position_arr < 0]))
-            self.surrounding_vehicles['back'] = rn.lane_list[self.lane_id - 1].vehicle_list[
+            self.surrounding_vehicles['back'] = rn.lane_list[self.lane_id].vehicle_list[
                 max_negative_index[0][0]]
 
         if not self.lane_id == 0:  # not at the down first lane, right lane exists
@@ -231,12 +239,16 @@ class AutonomousVehicle(Vehicle):
 
             if max(x_position_arr) > 0:
                 min_positive_index = np.where(x_position_arr == min(x_position_arr[x_position_arr > 0]))
-                self.surrounding_vehicles['rightfront'] = rn.lane_list[self.lane_id - 1].vehicle_list[min_positive_index[0][0]]
+                self.surrounding_vehicles['rightfront'] = rn.lane_list[self.lane_id - 1].vehicle_list[
+                    min_positive_index[0][0]]
             if min(x_position_arr) < 0:
                 max_negative_index = np.where(x_position_arr == max(x_position_arr[x_position_arr < 0]))
-                self.surrounding_vehicles['rightback'] = rn.lane_list[self.lane_id - 1].vehicle_list[max_negative_index[0][0]]
+                self.surrounding_vehicles['rightback'] = rn.lane_list[self.lane_id - 1].vehicle_list[
+                    max_negative_index[0][0]]
 
     def get_av_central_vertices(self, rn):
+
+        # get current cv
         cv_current_x = rn.lane_list[self.lane_id].x_range
         cv_current_y = np.mean(rn.lane_list[self.lane_id].y_range)
         cv_current_start = [cv_current_x[0], cv_current_y]
@@ -247,6 +259,7 @@ class AutonomousVehicle(Vehicle):
                                    cv_current_end])
         self.current_cv, _ = smooth_ployline(current_cv_raw)
 
+        # get target cv
         if self.lane_id == 0:
             cv_target_y = cv_current_y
         else:
@@ -265,14 +278,17 @@ class AutonomousVehicle(Vehicle):
         if new_lane_id == self.lane_id:
             return False
         else:
-            self.last_lane_id = self.lane_id
-            self.lane_id = new_lane_id
-            self.source_lane = rn.lane_list[new_lane_id]
+            if min(abs(np.array(rn.lane_list[new_lane_id].y_range) - self.y)) < 0.5:
+                return False
+            else:
+                self.last_lane_id = self.lane_id
+                self.lane_id = new_lane_id
+                self.source_lane = rn.lane_list[new_lane_id]
 
-            # update vehicle list of affected lanes
-            self.source_lane.vehicle_list.append(self)
-            rn.lane_list[self.last_lane_id].vehicle_list.remove(self)
-            return True
+                # update vehicle list of affected lanes
+                self.source_lane.vehicle_list.append(self)
+                rn.lane_list[self.last_lane_id].vehicle_list.remove(self)
+                return True
 
     def draw_box(self, ax):
         draw_rectangle(self.x, self.y, self.heading, ax, para_alpha=1, para_color='red')
