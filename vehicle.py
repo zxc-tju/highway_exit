@@ -7,6 +7,7 @@ import matplotlib.patches as patches
 import matplotlib.transforms as mt
 from agent import Agent
 from tools.utility import smooth_ployline
+from tools.Lattice import *
 
 dt = 0.1
 
@@ -108,11 +109,144 @@ class AutonomousVehicle(Vehicle):
         """
         motion planner settings
         """
-
         if self.controller == 'IDM':
             self.idm_planner()
         if self.controller == 'NGMP':  # Nash game motion planner
             self.ngmp_planner()
+        if self.controller == 'Lattice':
+            self.lattice_planner()
+
+
+    def lattice_planner(self):
+        agent_av = Agent(
+            [self.x, self.y],  # position
+            [self.vx, self.vy],  # velocity
+            self.heading,  # heading
+            self.target_cv  # central vertices of the target lane
+        )
+        agent_av.ipv = self.ipv
+        bv_rightback = self.surrounding_vehicles['rightback']
+        bv_rightfront = self.surrounding_vehicles['rightfront']  # 如果直接忽略前车可能会变道时追尾 所以与右车道前车距离近时 要视为障碍物
+        bv_front = self.surrounding_vehicles['front']  # 如果同车道前车比自己慢 且在反应距离内 则自己的规划速度不能大于前车当前速度 不用视为障碍物 但规划时需要减速
+
+        self.v = math.sqrt(self.vx ** 2 + self.vy ** 2)
+        traj_point = TrajPoint(
+            [self.x, self.y, self.v, 0,
+             self.heading, 0])  # [x y v a theta kappa] [x y v theta]
+
+        # print(self.x - bv_rightback.x, bv_rightfront.x-self.x, bv_front.x - self.x, self.x)
+        # get obs
+        obstacles = []
+        planning_horizon = 15  # 后车规划
+        already_planned = 0
+        for obs in range(planning_horizon):
+            obs_point = [bv_rightback.x + already_planned * bv_rightback.vx * 0.15,
+                         bv_rightback.y + already_planned * bv_rightback.vy * 0.15,
+                         math.sqrt(bv_rightback.vx ** 2 + bv_rightback.vy ** 2),
+                         bv_rightback.heading]  # 上时刻在obs时刻的规划轨迹 数据为 x y v theta
+            obstacles.append(Obstacle([obs_point[0], obs_point[1], 0, VEH_L, VEH_W, obs_point[3]]))
+            already_planned += 1
+
+        already_planned = 0
+        if bv_rightfront.x - self.x < VEH_L:  # 右前车还很近 应该被视为障碍物
+            print('right front 有车， 且被视为障碍物')
+            for obs in range(15):
+                obs_point = [bv_rightfront.x + already_planned * bv_rightfront.vx * 0.15 - 2 * VEH_L,
+                             bv_rightfront.y + already_planned * bv_rightfront.vy * 0.15,
+                             math.sqrt(bv_rightfront.vx ** 2 + bv_rightfront.vy ** 2),
+                             bv_rightfront.heading]  # 当前位置即可 不用带提前量 * Dt 不差这点
+                obstacles.append(Obstacle([obs_point[0], obs_point[1], 0, VEH_L, VEH_W, obs_point[3]]))
+                already_planned += 1
+
+        # backup 4 bv_rightfront 目前无用
+        # already_planned = 0
+        # if bv_front.x - self.x < VEH_L:  # 当本车侵入右车道时 右前车变为前车还很近 应该被视为障碍物
+        #     for obs in range(planning_horizon):
+        #         obs_point = [bv_front.x + already_planned * bv_front.vx * 0.1,
+        #                     bv_front.y + already_planned * bv_front.vy * 0.1,
+        #                     math.sqrt(bv_front.vx ** 2 + bv_front.vy ** 2),
+        #                     bv_front.heading]  # 当前位置即可 不用带提前量 * Dt 不差这点
+        #         obstacles.append(Obstacle([obs_point[0], obs_point[1], 0, VEH_L, VEH_W, obs_point[3]]))
+        #         already_planned += 1
+
+        if -0.05 < self.y < 0.05:  # 已经在最后一个车道时
+            path_points = CalcRefLine(straight_line([self.x, self.y]).T)  # 这一步改变ref_line 所以不对self.ref_line调整
+            for obstacle in obstacles:
+                obstacle.MatchPath(path_points)  ### 同样match障碍物与参考轨迹
+            traj_point.MatchPath(path_points)
+            samp_basis = SampleBasis(traj_point, theta_thr, ttcs)
+            local_planner = LocalPlanner(traj_point, path_points, obstacles, samp_basis, self.ipv)
+            if bv_front != None:
+                if bv_front.x - self.x < sight_range and bv_front.vx < self.vx:  # 规划速度不超过前车速度
+                    print('存在前车， 速度不能超过前车')
+                    traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=bv_front.vx)
+                else:
+                    traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=v_tgt)
+            else:
+                traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=v_tgt)
+
+        else:
+            save_r = []
+            save_traj_opt = []
+            steep_list = [0.05, 0.1, 0.2]
+            for steep in steep_list:
+                # get ref_line
+                ref_start_lane = math.ceil(self.y / 4)  # y [12, 8) lane = 3; y [8, 4) lane = 2
+                ref_line = sigmoid_function([self.x, ref_start_lane * 4], steepness=steep).T
+                gap = ref_line[0][np.argmin(
+                    abs(self.y - ref_line[1]))] - self.x  # 解决闪现问题 由于中途更换steep导致目前车辆位置可能不在ref_line上 所以直接match会出现闪现
+                # print(self.y, ref_start_lane, np.argmin(abs(self.y - ref_line[1])))
+                ref_line[0] = ref_line[0] - gap  # 解决方案是将现在的ref_line平移到当前位置
+                path_points = CalcRefLine(ref_line)
+
+                # match data
+                for obstacle in obstacles:
+                    obstacle.MatchPath(path_points)  ### 同样match障碍物与参考轨迹
+                    # plt.gca().add_patch(plt.Rectangle((obstacle.corner[0], obstacle.corner[1]), obstacle.length,
+                    #                                    obstacle.width, color='r', angle=obstacle.heading*180/M_PI))
+                    # plt.axis('scaled')
+
+                traj_point.MatchPath(path_points)  # matching once is enough 将traj_point(单点)与path_points(序列)中最近的点匹配
+
+                samp_basis = SampleBasis(traj_point, theta_thr, ttcs)
+                local_planner = LocalPlanner(traj_point, path_points, obstacles, samp_basis, self.ipv)
+                if bv_front != None:
+                    if bv_front.x - self.x < sight_range and bv_front.vx < self.vx:
+                        print('存在前车， 速度不能超过前车')
+                        traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=bv_front.vx)
+                    else:
+                        traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=v_tgt)
+                else:
+                    traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=v_tgt)
+
+                save_traj_opt.append(traj_points_opt)
+                save_r.append(r)
+
+            best_traj = np.argmax(save_r)
+            # print('当前规划的steepness为', steep_list[best_traj], '(from 0.1-0.3)', save_r)
+            traj_points_opt = save_traj_opt[best_traj]
+
+            if len(traj_points_opt) <= 10:
+                # print("无解, 考虑直行")
+                path_points = CalcRefLine(straight_line([self.x, self.y]).T)  # 这一步改变ref_line 所以不对self.ref_line调整
+                for obstacle in obstacles:
+                    obstacle.MatchPath(path_points)  ### 同样match障碍物与参考轨迹
+                traj_point.MatchPath(path_points)
+                samp_basis = SampleBasis(traj_point, theta_thr, ttcs)
+                local_planner = LocalPlanner(traj_point, path_points, obstacles, samp_basis, self.ipv)
+                traj_points_opt, r = local_planner.LocalPlanning(traj_point, path_points, target_v=0)
+
+        traj_points = []
+        for tp_opt in traj_points_opt:
+            traj_points.append(
+                [tp_opt.x, tp_opt.y, tp_opt.v * math.sin(tp_opt.theta), tp_opt.v * math.cos(tp_opt.theta),
+                 tp_opt.theta])
+        self.trajectory_solution = np.array(traj_points)
+        self.x = traj_points_opt[1].x
+        self.y = traj_points_opt[1].y
+        self.heading = traj_points_opt[1].theta
+        self.vx = traj_points_opt[1].v * math.sin(self.heading)
+        self.vy = traj_points_opt[1].v * math.cos(self.heading)
 
     def ngmp_planner(self):
         try:
