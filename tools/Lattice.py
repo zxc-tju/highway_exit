@@ -630,7 +630,7 @@ class LocalPlanner:
         # else:
         #     self.to_stop = False  # cruising
         self.to_stop = False
-        self.dist_prvw = samp_basis.dist_prvw
+        self.dist_prvw = samp_basis.dist_prvw * 2  # make acc near 1m/s2
         colli_match = None
 
         for obs in range(int(0.5*len(self.obstacles))):
@@ -767,14 +767,14 @@ class LocalPlanner:
         #                  obstacle.width, color='r', angle = obstacle.heading*180/M_PI))
 
         global delta_t
-        if target_v == 0:  # 90m内减速停下 v²/2a
+        if target_v == 0:  # 360m内减速停下 v²/2a
             self.v_end = 0
-            self.dist_prvw = 90
+            self.dist_prvw = 400  # 使减速度在1m/s2左右
         elif target_v == v_tgt:
             pass
         else:  # 20m内到达规划速度（!= v_tgt且!=0 只可能出现在同车道前车稍慢于本车当前速度）
             self.v_end = target_v
-            self.dist_prvw = 10
+            self.dist_prvw = 50
         acc = ((self.v_end ** 2 - self.traj_point.v ** 2) / (2 * self.dist_prvw) + 10e-10)  ### 以此加速度向v_end靠拢(在to_stop=False时=v_tgt)
         total_t = 2 * self.dist_prvw / (self.v_end + self.traj_point.v)
         num_points = math.floor(total_t / delta_t)

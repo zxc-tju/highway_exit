@@ -116,7 +116,6 @@ class AutonomousVehicle(Vehicle):
         if self.controller == 'Lattice':
             self.lattice_planner()
 
-
     def lattice_planner(self):
         agent_av = Agent(
             [self.x, self.y],  # position
@@ -148,8 +147,8 @@ class AutonomousVehicle(Vehicle):
             already_planned += 1
 
         already_planned = 0
-        if bv_rightfront.x - self.x < VEH_L:  # 右前车还很近 应该被视为障碍物
-            print('right front 有车， 且被视为障碍物')
+        if bv_rightfront.x - self.x < 2 * VEH_L:  # 右前车还很近 应该被视为障碍物
+            # print('right front 有车， 且被视为障碍物')
             for obs in range(15):
                 obs_point = [bv_rightfront.x + already_planned * bv_rightfront.vx * 0.15 - 2 * VEH_L,
                              bv_rightfront.y + already_planned * bv_rightfront.vy * 0.15,
@@ -245,6 +244,7 @@ class AutonomousVehicle(Vehicle):
         self.x = traj_points_opt[1].x
         self.y = traj_points_opt[1].y
         self.heading = traj_points_opt[1].theta
+        print('acc now',  (traj_points_opt[1].v - self.v) * 10)
         self.vx = traj_points_opt[1].v * math.sin(self.heading)
         self.vy = traj_points_opt[1].v * math.cos(self.heading)
 
@@ -253,12 +253,12 @@ class AutonomousVehicle(Vehicle):
             self.planning_to_target_cv()
 
             if self.check_collision():
-                print('planning to target failed, keep in current lane')
+                # print('planning to target failed, keep in current lane')
                 self.planning_to_current_cv()
                 self.is_planning_back = True
 
                 if self.check_collision(target={'front'}):
-                    print('keep in current lane failed, start car-following')
+                    # print('keep in current lane failed, start car-following')
                     self.idm_planner()
                 else:
                     self.get_new_state()
@@ -267,7 +267,7 @@ class AutonomousVehicle(Vehicle):
                 self.is_planning_back = False
                 self.get_new_state()
         except:
-            print('NGMP planning failed')
+            # print('NGMP planning failed')
             self.idm_planner()
 
     def planning_to_target_cv(self):

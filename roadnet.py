@@ -5,7 +5,7 @@ class RoadNetwork:
     def __init__(self):
         self.lane_list = []  # list of Lane class
         self.vehicle_list = []  # list of Vehicle class
-        self.traffic_quantity = 30  # x vehicles per lane per kilometer
+        self.traffic_quantity = 37.5  # x vehicles per lane per kilometer
         self.vehicle_number = 0
         self.lane_number = 4
 
@@ -38,7 +38,7 @@ class RoadNetwork:
 
 
 class Lane:
-    def __init__(self, lane_id=0, traffic_quantity=30, lane_len=500):
+    def __init__(self, lane_id=0, traffic_quantity=37.5, lane_len=500):
         self.id = lane_id
         self.length = lane_len
         self.traffic_quantity = traffic_quantity
