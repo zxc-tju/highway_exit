@@ -36,6 +36,7 @@ class Vehicle:
         # sample initial motion and IDM parameters
         self.vx = (100 + np.random.uniform(-10, 10)) / 3.6
         self.vy = 0
+        self.ax = 0
 
         self.front_vehicle = None
         self.source_lane = source_lane
@@ -84,6 +85,7 @@ class Vehicle:
                         self.vx,
                         self.delta_speed_from_front,
                         self.distance_from_front)
+        self.ax = acc
         self.vx += acc * dt
         self.x += self.vx * dt
 
@@ -244,7 +246,7 @@ class AutonomousVehicle(Vehicle):
         self.x = traj_points_opt[1].x
         self.y = traj_points_opt[1].y
         self.heading = traj_points_opt[1].theta
-        print('acc now',  (traj_points_opt[1].v - self.v) * 10)
+        # print('acc now',  (traj_points_opt[1].v - self.v) * 10)
         self.vx = traj_points_opt[1].v * math.sin(self.heading)
         self.vy = traj_points_opt[1].v * math.cos(self.heading)
 

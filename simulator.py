@@ -11,13 +11,8 @@ from tqdm import tqdm
 from time import gmtime, strftime
 
 dt = 0.1
-AV_controller = 'NGMP'  # 'NGMP'  'IDM'  'Lattice'
-AV_IPV = 0
 WARMUP_TIME = 5
-
-SIMULATION_FRAMES = 500
-LANE_LEN = 1000
-save_data_needed = True
+save_data_needed = 1
 
 
 class Simulator:
@@ -55,7 +50,7 @@ class Simulator:
         " ---- option 2: save as gif ---- "
         # ani.save('test.gif', fps=10, dpi=300)
 
-        # " ---- option 3: save as mp4 video ---- "
+        " ---- option 3: save as mp4 video ---- "
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=10, codec="h264", bitrate=-1, metadata=dict(dpi=600, artist='Me'))
         video_dir = '../outputs/highway_exit/video/' + str(LANE_LEN) + 'm/' + \
@@ -79,8 +74,10 @@ class Simulator:
             self.save_data()
 
     def save_data(self):
-        file_name = '../outputs/highway_exit/data/' + str(LANE_LEN) + 'm/' + \
-                    start_time + '-' + AV_controller + '-ipv-' + str(AV_IPV) + '.xlsx'
+        file_dir = '../outputs/highway_exit/data/' + str(LANE_LEN) + 'm/'
+        if not os.path.exists(file_dir):
+            os.makedirs(file_dir)
+        file_name = file_dir + start_time + '-' + AV_controller + '-ipv-' + str(AV_IPV) + '.xlsx'
         if not os.path.exists(file_name):
             workbook = xlsxwriter.Workbook(file_name)
             workbook.add_worksheet()
@@ -171,10 +168,23 @@ class Simulator:
                          color='gray')
 
     def record_ttc_after_lc(self):
-        if self.av.back_ttc:
-            self.record_data['b_ttc_' + str(int(3 - self.av.lane_id))] = self.av.back_ttc
-        if self.av.front_ttc:
-            self.record_data['f_ttc_' + str(int(3 - self.av.lane_id))] = self.av.front_ttc
+
+        self.record_data['av_x_' + str(int(3 - self.av.lane_id))] = self.av.x
+        self.record_data['av_vx_' + str(int(3 - self.av.lane_id))] = self.av.vx
+        for veh in self.road_net.lane_list[self.av.lane_id].vehicle_list:
+            if veh.rank_in_lane == self.av.rank_in_lane + 1:  # find following car
+                back_ttc = (self.av.x - veh.x) / (veh.vx - self.av.vx)  # TTC
+                self.record_data['b_ttc_' + str(int(3 - self.av.lane_id))] = back_ttc
+                self.record_data['b_x_' + str(int(3 - self.av.lane_id))] = veh.x
+                self.record_data['b_v_' + str(int(3 - self.av.lane_id))] = veh.vx
+                self.record_data['b_acc_' + str(int(3 - self.av.lane_id))] = veh.ax
+
+            if veh.rank_in_lane == self.av.rank_in_lane - 1:  # find leading car
+                front_ttc = (veh.x - self.av.x) / (self.av.vx - veh.vx)  # TTC
+                self.record_data['f_ttc_' + str(int(3 - self.av.lane_id))] = front_ttc
+                self.record_data['f_x_' + str(int(3 - self.av.lane_id))] = veh.x
+                self.record_data['f_v_' + str(int(3 - self.av.lane_id))] = veh.vx
+                self.record_data['f_acc_' + str(int(3 - self.av.lane_id))] = veh.ax
 
     def initialize_lane_list(self):
         for i in range(self.road_net.lane_number):
@@ -209,18 +219,28 @@ class Simulator:
 
 
 if __name__ == '__main__':
+
+    # AV_controller = 'NGMP'  # 'NGMP'  'IDM'  'Lattice'
+    LANE_LEN = 800
+    SIMULATION_FRAMES = 350
+
     # " single run "
+    # AV_controller = 'NGMP'
+    # start_time = strftime("%Y-%m-%d-%H", gmtime())
+    # AV_IPV = 0
     # simu = Simulator(0)
     # simu.initialize()
 
     " multi runs "
-    start_time = strftime("%Y-%m-%d-%H", gmtime())
-    print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + start_time)
-    proc_bar = tqdm(range(0, 100))
-    for n in proc_bar:
-        try:
-            simu = Simulator(n)
-            simu.initialize()
-        except:
-            print('case', str(n), 'failed')
-            continue
+    for AV_controller in ['NGMP', 'Lattice']:
+        for AV_IPV in [-0.5, 0, 0.5]:
+            start_time = strftime("%Y-%m-%d-%H", gmtime())
+            print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + start_time)
+            proc_bar = tqdm(range(0, 500))
+            for n in proc_bar:
+                try:
+                    simu = Simulator(n)
+                    simu.initialize()
+                except:
+                    print('case', str(n), 'failed')
+                    continue

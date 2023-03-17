@@ -26,15 +26,9 @@ class RoadNetwork:
             if veh.rank_in_lane > old_rank:  # and not veh.is_av
                 veh.rank_in_lane -= 1
 
-        av.back_ttc = None
-        av.front_ttc = None
         for veh in self.lane_list[new_lane_id].vehicle_list:
             if veh.rank_in_lane >= new_rank and not veh.is_av:
                 veh.rank_in_lane += 1
-                if veh.rank_in_lane == new_rank + 1:  # find following car
-                    av.back_ttc = (av.x - veh.x) / (veh.vx - av.vx)
-            if veh.rank_in_lane == new_rank - 1:  # find leading car
-                av.front_ttc = (veh.x - av.x) / (av.vx - veh.vx)
 
 
 class Lane:
