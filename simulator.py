@@ -41,8 +41,7 @@ class Simulator:
         self.initialize_lane_list()
         self.initialize_vehicle_list()
         self.draw_road_net()
-        ani = FuncAnimation(self.fig, self.update, interval=10,
-                            frames=SIMULATION_FRAMES, blit=False, repeat=False, save_count=SIMULATION_FRAMES)
+        ani = FuncAnimation(self.fig, self.update, interval=10, frames=SIMULATION_FRAMES, blit=False, repeat=False)
 
         " ---- option 1: show animation ---- "
         # plt.show()
@@ -220,19 +219,18 @@ class Simulator:
 
 if __name__ == '__main__':
 
-    # AV_controller = 'NGMP'  # 'NGMP'  'IDM'  'Lattice'
-    LANE_LEN = 800
-    SIMULATION_FRAMES = 350
+    LANE_LEN = 1000
+    SIMULATION_FRAMES = 450
 
     # " single run "
-    # AV_controller = 'NGMP'
+    # AV_controller = 'OPT'  # 'NGMP'  'IDM'  'Lattice'  'OPT'
     # start_time = strftime("%Y-%m-%d-%H", gmtime())
     # AV_IPV = 0
     # simu = Simulator(0)
     # simu.initialize()
 
     " multi runs "
-    for AV_controller in ['NGMP', 'Lattice']:
+    for AV_controller in ['OPT']:
         for AV_IPV in [-0.5, 0, 0.5]:
             start_time = strftime("%Y-%m-%d-%H", gmtime())
             print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + start_time)

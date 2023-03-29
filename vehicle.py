@@ -113,7 +113,7 @@ class AutonomousVehicle(Vehicle):
         """
         if self.controller == 'IDM':
             self.idm_planner()
-        if self.controller == 'NGMP':  # Nash game motion planner
+        if self.controller in {'NGMP', 'OPT'}:  # Nash game motion planner
             self.ngmp_planner()
         if self.controller == 'Lattice':
             self.lattice_planner()
@@ -291,7 +291,10 @@ class AutonomousVehicle(Vehicle):
             bv.current_cv
         )
         agent_av.estimated_inter_agent = [copy.deepcopy(agent_bv)]
-        agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
+        if self.controller == 'NGMP':
+            agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
+        elif self.controller == 'OPT':
+            agent_av.lp_ibr_interact(iter_limit=1, interactive=True)
         self.trajectory_solution = agent_av.trj_solution[:, 0:5]
 
     def planning_to_current_cv(self):
@@ -309,9 +312,11 @@ class AutonomousVehicle(Vehicle):
             0,  # heading
             self.current_cv
         )
-
         agent_av.estimated_inter_agent = [copy.deepcopy(agent_bv)]
-        agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
+        if self.controller == 'NGMP':
+            agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
+        elif self.controller == 'OPT':
+            agent_av.lp_ibr_interact(iter_limit=1, interactive=True)
         self.trajectory_solution = agent_av.trj_solution[:, 0:5]
 
     def get_new_state(self):
