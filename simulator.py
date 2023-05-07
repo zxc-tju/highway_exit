@@ -219,19 +219,19 @@ class Simulator:
 
 if __name__ == '__main__':
 
-    LANE_LEN = 1000
-    SIMULATION_FRAMES = 450
+    LANE_LEN = 800
+    SIMULATION_FRAMES = 350
 
     # " single run "
-    # AV_controller = 'OPT'  # 'NGMP'  'IDM'  'Lattice'  'OPT'
+    # AV_controller = 'OPT'  # 'NGMP'  'IDM'  'Lattice'
     # start_time = strftime("%Y-%m-%d-%H", gmtime())
     # AV_IPV = 0
     # simu = Simulator(0)
     # simu.initialize()
 
     " multi runs "
-    for AV_controller in ['OPT']:
-        for AV_IPV in [-0.5, 0, 0.5]:
+    for AV_controller in ['NGMP', 'Lattice']:
+        for AV_IPV in [-0.6, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.6]:
             start_time = strftime("%Y-%m-%d-%H", gmtime())
             print('start:' + AV_controller + '-ipv-' + str(AV_IPV) + '-' + start_time)
             proc_bar = tqdm(range(0, 500))

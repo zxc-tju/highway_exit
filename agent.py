@@ -17,7 +17,7 @@ import time
 dt = 0.1
 TRACK_LEN = 30
 MAX_DELTA_UT = 1e-4
-MIN_DIS = 2
+MIN_DIS = 3
 
 # weights for calculate interior cost
 WEIGHT_DELAY = 0.3
@@ -51,6 +51,7 @@ class Agent:
         self.heading = heading
         self.acceleration = acceleration
         self.cv = cv
+        self.target = cv
         self.track_len = TRACK_LEN
         # conducted trajectory
         self.observed_trajectory = np.array([[self.position[0],
@@ -825,7 +826,7 @@ if __name__ == '__main__':
     agent_gs1 = Agent(init_position_gs1, init_velocity_gs1, init_heading_gs1, 'gs', [0, 0])
     agent_lt.estimated_inter_agent = [copy.deepcopy(agent_gs1)]
 
-    agent_lt.ipv = -2 * math.pi / 8
+    agent_lt.ipv = 2 * math.pi / 8
     agent_lt.estimated_inter_agent[0].ipv = 0 * math.pi / 8
     # agent_lt.estimated_inter_agent[1].ipv = 0 * math.pi / 8
 

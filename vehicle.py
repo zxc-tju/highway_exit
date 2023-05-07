@@ -294,7 +294,7 @@ class AutonomousVehicle(Vehicle):
         if self.controller == 'NGMP':
             agent_av.lp_ibr_interact(iter_limit=50, interactive=True)
         elif self.controller == 'OPT':
-            agent_av.lp_ibr_interact(iter_limit=1, interactive=True)
+            agent_av.lp_ibr_interact(iter_limit=0, interactive=True)
         self.trajectory_solution = agent_av.trj_solution[:, 0:5]
 
     def planning_to_current_cv(self):
